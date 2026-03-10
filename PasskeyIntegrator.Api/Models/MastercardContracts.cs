@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace PasskeyIntegrator.Api.Models.Mastercard;
 
-// Mastercard Enroll Card Contracts
+// Mastercard Enroll Card Contracts (/cards)
 public record MastercardEnrollCardRequest(
     [property: JsonPropertyName("fundingAccountInfo")] FundingAccountInfo FundingAccountInfo
 );
@@ -12,37 +12,46 @@ public record FundingAccountInfo(
 );
 
 public record MastercardEnrollCardResponse(
-    [property: JsonPropertyName("enrollmentId")] string EnrollmentId,
+    [property: JsonPropertyName("srcDigitalCardId")] string SrcDigitalCardId,
     [property: JsonPropertyName("status")] string Status
 );
 
+// Mastercard Orchestrator - Lookup
+public record MastercardLookupRequest(
+    [property: JsonPropertyName("srcDigitalCardId")] string SrcDigitalCardId
+);
 
-// Mastercard FIDO Registration Contracts
-public record MastercardRegistrationInitRequest(
-    [property: JsonPropertyName("enrollmentId")] string EnrollmentId);
-    
-public record MastercardRegistrationInitResponse([property: JsonPropertyName("challenge")] string Challenge, [property: JsonPropertyName("rpId")] string RpId, [property: JsonPropertyName("userIdentifier")] string UserIdentifier);
+public record MastercardLookupResponse(
+    [property: JsonPropertyName("accountHolderId")] string AccountHolderId
+);
 
-public record MastercardRegistrationCompleteRequest(
-    [property: JsonPropertyName("enrollmentId")] string EnrollmentId, 
-    [property: JsonPropertyName("challenge")] string Challenge, 
-    [property: JsonPropertyName("attestationObject")] string AttestationObject, 
-    [property: JsonPropertyName("clientDataJson")] string ClientDataJson);
+// Mastercard Orchestrator - Authenticators (Registration)
+public record MastercardAuthenticatorsRequest(
+    [property: JsonPropertyName("srcDigitalCardId")] string SrcDigitalCardId,
+    [property: JsonPropertyName("fidoAttestationObject")] string? FidoAttestationObject = null,
+    [property: JsonPropertyName("fidoClientDataJson")] string? FidoClientDataJson = null
+);
 
-public record MastercardRegistrationCompleteResponse([property: JsonPropertyName("registrationStatus")] string RegistrationStatus, [property: JsonPropertyName("fidoCredentialId")] string FidoCredentialId);
+public record MastercardAuthenticatorsResponse(
+    [property: JsonPropertyName("fidoChallenge")] string? FidoChallenge,
+    [property: JsonPropertyName("rpId")] string? RpId,
+    [property: JsonPropertyName("userIdentifier")] string? UserIdentifier,
+    [property: JsonPropertyName("registrationStatus")] string? RegistrationStatus,
+    [property: JsonPropertyName("fidoCredentialId")] string? FidoCredentialId
+);
 
-// Mastercard FIDO Authentication Contracts
-public record MastercardAuthenticationInitRequest(
-    [property: JsonPropertyName("pan")] string Pan,
-    [property: JsonPropertyName("amount")] decimal Amount);
-public record MastercardAuthenticationInitResponse([property: JsonPropertyName("challenge")] string Challenge, [property: JsonPropertyName("rpId")] string RpId);
+// Mastercard Orchestrator - Authenticate (Payment Auth)
+public record MastercardAuthenticateRequest(
+    [property: JsonPropertyName("srcDigitalCardId")] string SrcDigitalCardId,
+    [property: JsonPropertyName("amount")] decimal Amount,
+    [property: JsonPropertyName("fidoAuthenticatorData")] string? FidoAuthenticatorData = null,
+    [property: JsonPropertyName("fidoClientDataJson")] string? FidoClientDataJson = null,
+    [property: JsonPropertyName("fidoSignature")] string? FidoSignature = null
+);
 
-public record MastercardAuthenticationCompleteRequest(
-    [property: JsonPropertyName("pan")] string Pan, 
-    [property: JsonPropertyName("challenge")] string Challenge, 
-    [property: JsonPropertyName("authenticatorData")] string AuthenticatorData, 
-    [property: JsonPropertyName("clientDataJson")] string ClientDataJson, 
-    [property: JsonPropertyName("signature")] string Signature,
-    [property: JsonPropertyName("amount")] decimal Amount);
-
-public record MastercardAuthenticationCompleteResponse([property: JsonPropertyName("authenticationStatus")] string AuthenticationStatus, [property: JsonPropertyName("authorizationId")] string AuthorizationId);
+public record MastercardAuthenticateResponse(
+    [property: JsonPropertyName("fidoChallenge")] string? FidoChallenge,
+    [property: JsonPropertyName("rpId")] string? RpId,
+    [property: JsonPropertyName("authenticationStatus")] string? AuthenticationStatus,
+    [property: JsonPropertyName("authorizationId")] string? AuthorizationId
+);

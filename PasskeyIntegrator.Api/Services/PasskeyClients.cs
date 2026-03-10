@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text.Json;
 using PasskeyIntegrator.Api.Models;
 using PasskeyIntegrator.Api.Models.Visa;
 using PasskeyIntegrator.Api.Models.Mastercard;
@@ -15,9 +16,14 @@ public interface IPasskeyClient
 
 public class VisaPasskeyClient(HttpClient httpClient) : IPasskeyClient
 {
-    private async Task<string> ExecuteParFlow()
+    private async Task<VisaParResponse> ExecuteParFlow(string pan, decimal? amount = null)
     {
-        // 1. Execute Pushed Authorization Request (PAR) to get request_uri
+        var authDetails = new VisaAuthorizationDetails(
+            Type: amount.HasValue ? "fido_authentication" : "fido_registration",
+            PrimaryAccountNumber: pan,
+            TransactionAmount: amount
+        );
+
         var parRequest = new VisaParRequest(
             ResponseType: "code",
             ClientId: "visa-poc-client",
@@ -25,66 +31,69 @@ public class VisaPasskeyClient(HttpClient httpClient) : IPasskeyClient
             RedirectUri: "https://localhost:17076/api/passkeys/callback",
             State: Guid.NewGuid().ToString("N"),
             CodeChallenge: "example-pkce-challenge",
-            CodeChallengeMethod: "S256"
+            CodeChallengeMethod: "S256",
+            AuthorizationDetails: [authDetails]
         );
 
-        var parResponse = await httpClient.PostAsJsonAsync("/vpp/v1/passkeys/oauth2/authorization/request/pushed", parRequest);
-        parResponse.EnsureSuccessStatusCode();
+        // All operations flow through PAR endpoint to obtain server_auth_data
+        var response = await httpClient.PostAsJsonAsync("/vpp/v1/passkeys/oauth2/authorization/request/pushed", parRequest);
+        response.EnsureSuccessStatusCode();
 
-        var parData = await parResponse.Content.ReadFromJsonAsync<VisaParResponse>();
-        return parData!.RequestUri;
+        return (await response.Content.ReadFromJsonAsync<VisaParResponse>())!;
     }
 
     public async Task<RegisterChallengeResponse> GenerateRegisterChallengeAsync(string pan)
     {
-        string requestUri = await ExecuteParFlow();
-        // The requestUri is typically passed to the frontend to redirect the user to Visa's OAuth portal.
-        // For this backend-to-backend PoC, we append it to the FIDO options request as contextual proof.
+        var parData = await ExecuteParFlow(pan);
         
-        var request = new VisaRegisterOptionsRequest(pan);
-        var response = await httpClient.PostAsJsonAsync($"/v1/fido/register/options?request_uri={requestUri}", request);
-        response.EnsureSuccessStatusCode();
+        // In a real scenario, server_auth_data contains the Base64 JSON of the FIDO challenge. 
+        // We mock parsing the fido challenge out of the returned server_auth_data string from PAR.
+        string mockChallenge = parData.ServerAuthData ?? "mock-visa-challenge-from-par";
 
-        var data = await response.Content.ReadFromJsonAsync<VisaRegisterOptionsResponse>();
-        
-        return new RegisterChallengeResponse(data!.FidoChallenge, data.RelyingPartyId, data.UserAccountId);
+        return new RegisterChallengeResponse(mockChallenge, "visa.com", "user-" + pan[^4..]);
     }
 
     public async Task<RegisterVerifyResponse> VerifyRegistrationAsync(RegisterVerifyRequest request)
     {
-        var visaRequest = new VisaRegisterVerifyRequest(request.Pan, request.Challenge, request.AttestationObject, request.ClientDataJson);
-        var response = await httpClient.PostAsJsonAsync("/v1/fido/register/verify", visaRequest);
+        var visaRequest = new VisaVerifyRequest(
+            RequestUri: request.Challenge, // Linking the previously established PAR request_uri
+            FidoAttestationObject: request.AttestationObject, 
+            FidoClientDataJson: request.ClientDataJson
+        );
+
+        // Submitting Verification back through the Visa Passkeys Verify endpoint / PAR completion
+        var response = await httpClient.PostAsJsonAsync("/vpp/v1/passkeys/oauth2/authorization/request/pushed", visaRequest);
         response.EnsureSuccessStatusCode();
 
-        var data = await response.Content.ReadFromJsonAsync<VisaRegisterVerifyResponse>();
+        var data = await response.Content.ReadFromJsonAsync<VisaVerifyResponse>();
 
-        return new RegisterVerifyResponse(data!.Status == "APPROVED", "Visa Passkey registered successfully.", data.CredentialId);
+        return new RegisterVerifyResponse(data!.Status == "APPROVED", "Visa Passkey registered successfully.", data.CredentialId ?? "new-cred-id");
     }
 
     public async Task<AuthChallengeResponse> GenerateAuthChallengeAsync(string pan, decimal amount)
     {
-        string requestUri = await ExecuteParFlow();
+        var parData = await ExecuteParFlow(pan, amount);
 
-        var request = new VisaAuthOptionsRequest(pan, amount);
-        var response = await httpClient.PostAsJsonAsync($"/v1/fido/authenticate/options?request_uri={requestUri}", request);
-        response.EnsureSuccessStatusCode();
+        string mockChallenge = parData.ServerAuthData ?? "mock-visa-auth-challenge-from-par";
 
-        var data = await response.Content.ReadFromJsonAsync<VisaAuthOptionsResponse>();
-
-        return new AuthChallengeResponse(data!.FidoChallenge, data.RelyingPartyId, "user-" + pan[^4..]);
+        return new AuthChallengeResponse(mockChallenge, "visa.com", "user-" + pan[^4..]);
     }
 
     public async Task<AuthVerifyResponse> VerifyAuthenticationAsync(AuthVerifyRequest request)
     {
-        var visaRequest = new VisaAuthVerifyRequest(
-            request.Pan, request.Challenge, request.AuthenticatorData, request.ClientDataJson, request.Signature, request.Amount);
+        var visaRequest = new VisaVerifyRequest(
+            RequestUri: request.Challenge,
+            FidoAuthenticatorData: request.AuthenticatorData, 
+            FidoClientDataJson: request.ClientDataJson, 
+            FidoSignature: request.Signature
+        );
             
-        var response = await httpClient.PostAsJsonAsync("/v1/fido/authenticate/verify", visaRequest);
+        var response = await httpClient.PostAsJsonAsync("/vpp/v1/passkeys/oauth2/authorization/request/pushed", visaRequest);
         response.EnsureSuccessStatusCode();
 
-        var data = await response.Content.ReadFromJsonAsync<VisaAuthVerifyResponse>();
+        var data = await response.Content.ReadFromJsonAsync<VisaVerifyResponse>();
         
-        return new AuthVerifyResponse(data!.Status == "APPROVED", data.TransactionId, data.Status);
+        return new AuthVerifyResponse(data!.Status == "APPROVED", data.TransactionId ?? "tx-12345", data.Status);
     }
 }
 
@@ -92,63 +101,84 @@ public class MastercardPasskeyClient(HttpClient httpClient) : IPasskeyClient
 {
     private async Task<string> EnrollCardAsync(string pan)
     {
-        // 1. Enroll Card with Mastercard Checkout Solutions before Passkey bindings
+        // 1. Enroll Card with Mastercard Checkout Solutions to get srcDigitalCardId
         var enrollRequest = new MastercardEnrollCardRequest(new FundingAccountInfo(pan));
-        var enrollResponse = await httpClient.PostAsJsonAsync("/checkout/v1/cards/enroll", enrollRequest);
+        var enrollResponse = await httpClient.PostAsJsonAsync("/cards", enrollRequest);
         enrollResponse.EnsureSuccessStatusCode();
 
         var enrollData = await enrollResponse.Content.ReadFromJsonAsync<MastercardEnrollCardResponse>();
-        return enrollData!.EnrollmentId;
+        return enrollData!.SrcDigitalCardId;
     }
 
     public async Task<RegisterChallengeResponse> GenerateRegisterChallengeAsync(string pan)
     {
-        string enrollmentId = await EnrollCardAsync(pan);
+        string digitalCardId = await EnrollCardAsync(pan);
 
-        // 2. Map the generated SRC Enrollment ID to the FIDO init request
-        var request = new MastercardRegistrationInitRequest(enrollmentId);
-        var response = await httpClient.PostAsJsonAsync("/id-cloud/v1/fido/registration/options", request);
-        response.EnsureSuccessStatusCode();
+        // 2. Lookup the account holder
+        var lookupRequest = new MastercardLookupRequest(digitalCardId);
+        var lookupResponse = await httpClient.PostAsJsonAsync("/digital/accountholder/authentications/lookup", lookupRequest);
+        lookupResponse.EnsureSuccessStatusCode();
 
-        var data = await response.Content.ReadFromJsonAsync<MastercardRegistrationInitResponse>();
+        // 3. Get Authenticators (Registration Options)
+        var authRequest = new MastercardAuthenticatorsRequest(digitalCardId);
+        var authResponse = await httpClient.PostAsJsonAsync("/authenticators", authRequest);
+        authResponse.EnsureSuccessStatusCode();
+
+        var data = await authResponse.Content.ReadFromJsonAsync<MastercardAuthenticatorsResponse>();
         
-        return new RegisterChallengeResponse(data!.Challenge, data.RpId, data.UserIdentifier);
+        return new RegisterChallengeResponse(data!.FidoChallenge ?? "mock-mc-challenge", data.RpId ?? "mastercard.com", data.UserIdentifier ?? "mc-user");
     }
 
     public async Task<RegisterVerifyResponse> VerifyRegistrationAsync(RegisterVerifyRequest request)
     {
-        // Notice we are assuming the PAN is identical to the enrollment ID in this mockup bridge for simplicity,
-        // in a production SDK the EnrollmentId orchestrates state across endpoints.
-        var mcRequest = new MastercardRegistrationCompleteRequest(request.Pan, request.Challenge, request.AttestationObject, request.ClientDataJson);
-        var response = await httpClient.PostAsJsonAsync("/id-cloud/v1/fido/registration/result", mcRequest);
+        // Verification completes the registration by submitting the attestation to /authenticators
+        // Note: For PoC, bridging PAN logic to retrieve the digitalCardId, normally tracked via session state
+        var mcRequest = new MastercardAuthenticatorsRequest(
+            SrcDigitalCardId: "mock-digital-card-id-from-state", 
+            FidoAttestationObject: request.AttestationObject, 
+            FidoClientDataJson: request.ClientDataJson
+        );
+        
+        var response = await httpClient.PostAsJsonAsync("/authenticators", mcRequest);
         response.EnsureSuccessStatusCode();
 
-        var data = await response.Content.ReadFromJsonAsync<MastercardRegistrationCompleteResponse>();
+        var data = await response.Content.ReadFromJsonAsync<MastercardAuthenticatorsResponse>();
 
-        return new RegisterVerifyResponse(data!.RegistrationStatus == "SUCCESS", "Mastercard Passkey registered successfully.", data.FidoCredentialId);
+        return new RegisterVerifyResponse(data!.RegistrationStatus == "SUCCESS", "Mastercard Passkey registered successfully.", data.FidoCredentialId ?? "mc-cred-id");
     }
 
     public async Task<AuthChallengeResponse> GenerateAuthChallengeAsync(string pan, decimal amount)
     {
-        var request = new MastercardAuthenticationInitRequest(pan, amount);
-        var response = await httpClient.PostAsJsonAsync("/id-cloud/v1/fido/authentication/options", request);
+        // Notice authentication logic calls /authenticate to fetch options
+        var mcRequest = new MastercardAuthenticateRequest(
+            SrcDigitalCardId: "mock-digital-card-id-from-state", 
+            Amount: amount
+        );
+        
+        var response = await httpClient.PostAsJsonAsync("/authenticate", mcRequest);
         response.EnsureSuccessStatusCode();
 
-        var data = await response.Content.ReadFromJsonAsync<MastercardAuthenticationInitResponse>();
+        var data = await response.Content.ReadFromJsonAsync<MastercardAuthenticateResponse>();
 
-        return new AuthChallengeResponse(data!.Challenge, data.RpId, "mc-user-" + pan[^4..]);
+        return new AuthChallengeResponse(data!.FidoChallenge ?? "mock-mc-auth-challenge", data.RpId ?? "mastercard.com", "mc-user-" + pan[^4..]);
     }
 
     public async Task<AuthVerifyResponse> VerifyAuthenticationAsync(AuthVerifyRequest request)
     {
-        var mcRequest = new MastercardAuthenticationCompleteRequest(
-            request.Pan, request.Challenge, request.AuthenticatorData, request.ClientDataJson, request.Signature, request.Amount);
+        // Verification completes the payment by submitting the assertion to /authenticate
+        var mcRequest = new MastercardAuthenticateRequest(
+            SrcDigitalCardId: "mock-digital-card-id-from-state", 
+            Amount: request.Amount,
+            FidoAuthenticatorData: request.AuthenticatorData, 
+            FidoClientDataJson: request.ClientDataJson, 
+            FidoSignature: request.Signature
+        );
             
-        var response = await httpClient.PostAsJsonAsync("/id-cloud/v1/fido/authentication/result", mcRequest);
+        var response = await httpClient.PostAsJsonAsync("/authenticate", mcRequest);
         response.EnsureSuccessStatusCode();
 
-        var data = await response.Content.ReadFromJsonAsync<MastercardAuthenticationCompleteResponse>();
+        var data = await response.Content.ReadFromJsonAsync<MastercardAuthenticateResponse>();
         
-        return new AuthVerifyResponse(data!.AuthenticationStatus == "SUCCESS", data.AuthorizationId, data.AuthenticationStatus);
+        return new AuthVerifyResponse(data!.AuthenticationStatus == "SUCCESS", data.AuthorizationId ?? "mc-auth-id", data.AuthenticationStatus);
     }
 }

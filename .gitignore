@@ -1,0 +1,34 @@
+# .NET / Build results
+[Bb]in/
+[Oo]bj/
+**/bin/
+**/obj/
+*.user
+*.userprefs
+*.suo
+*.sln.docstates
+
+# Node.js
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# IDEs
+.vs/
+.idea/
+.vscode/
+
+# Aspire
+.env
+appsettings.Development.json
+appsettings.*.json
+
+# Environment Variables
+.env*
