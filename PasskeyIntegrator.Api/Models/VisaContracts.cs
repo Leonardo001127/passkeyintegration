@@ -2,6 +2,22 @@ using System.Text.Json.Serialization;
 
 namespace PasskeyIntegrator.Api.Models.Visa;
 
+// OAuth2 Pushed Authorization Request (PAR)
+public record VisaParRequest(
+    [property: JsonPropertyName("response_type")] string ResponseType,
+    [property: JsonPropertyName("client_id")] string ClientId,
+    [property: JsonPropertyName("scope")] string Scope,
+    [property: JsonPropertyName("redirect_uri")] string RedirectUri,
+    [property: JsonPropertyName("state")] string State,
+    [property: JsonPropertyName("code_challenge")] string CodeChallenge,
+    [property: JsonPropertyName("code_challenge_method")] string CodeChallengeMethod
+);
+
+public record VisaParResponse(
+    [property: JsonPropertyName("request_uri")] string RequestUri,
+    [property: JsonPropertyName("expires_in")] int ExpiresIn
+);
+
 // Visa FIDO Registration Contracts
 public record VisaRegisterOptionsRequest([property: JsonPropertyName("primaryAccountNumber")] string PrimaryAccountNumber);
 public record VisaRegisterOptionsResponse([property: JsonPropertyName("fidoChallenge")] string FidoChallenge, [property: JsonPropertyName("relyingPartyId")] string RelyingPartyId, [property: JsonPropertyName("userAccountId")] string UserAccountId);

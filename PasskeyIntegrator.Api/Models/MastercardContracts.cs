@@ -2,12 +2,29 @@ using System.Text.Json.Serialization;
 
 namespace PasskeyIntegrator.Api.Models.Mastercard;
 
+// Mastercard Enroll Card Contracts
+public record MastercardEnrollCardRequest(
+    [property: JsonPropertyName("fundingAccountInfo")] FundingAccountInfo FundingAccountInfo
+);
+
+public record FundingAccountInfo(
+    [property: JsonPropertyName("pan")] string Pan
+);
+
+public record MastercardEnrollCardResponse(
+    [property: JsonPropertyName("enrollmentId")] string EnrollmentId,
+    [property: JsonPropertyName("status")] string Status
+);
+
+
 // Mastercard FIDO Registration Contracts
-public record MastercardRegistrationInitRequest([property: JsonPropertyName("pan")] string Pan);
+public record MastercardRegistrationInitRequest(
+    [property: JsonPropertyName("enrollmentId")] string EnrollmentId);
+    
 public record MastercardRegistrationInitResponse([property: JsonPropertyName("challenge")] string Challenge, [property: JsonPropertyName("rpId")] string RpId, [property: JsonPropertyName("userIdentifier")] string UserIdentifier);
 
 public record MastercardRegistrationCompleteRequest(
-    [property: JsonPropertyName("pan")] string Pan, 
+    [property: JsonPropertyName("enrollmentId")] string EnrollmentId, 
     [property: JsonPropertyName("challenge")] string Challenge, 
     [property: JsonPropertyName("attestationObject")] string AttestationObject, 
     [property: JsonPropertyName("clientDataJson")] string ClientDataJson);
