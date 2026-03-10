@@ -1,0 +1,6 @@
+@PasskeyIntegrator.Api_HostAddress = http://localhost:5047
+
+GET {{PasskeyIntegrator.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

@@ -1,0 +1,12 @@
+C:\Users\User\source\repos\cielo\passkeyIntegrator\PasskeyIntegrator.ServiceDefaults\bin\Debug\net10.0\PasskeyIntegrator.ServiceDefaults.deps.json
+C:\Users\User\source\repos\cielo\passkeyIntegrator\PasskeyIntegrator.ServiceDefaults\bin\Debug\net10.0\PasskeyIntegrator.ServiceDefaults.dll
+C:\Users\User\source\repos\cielo\passkeyIntegrator\PasskeyIntegrator.ServiceDefaults\bin\Debug\net10.0\PasskeyIntegrator.ServiceDefaults.pdb
+C:\Users\User\source\repos\cielo\passkeyIntegrator\PasskeyIntegrator.ServiceDefaults\obj\Debug\net10.0\PasskeyIntegrator.ServiceDefaults.csproj.AssemblyReference.cache
+C:\Users\User\source\repos\cielo\passkeyIntegrator\PasskeyIntegrator.ServiceDefaults\obj\Debug\net10.0\PasskeyIntegrator.ServiceDefaults.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\User\source\repos\cielo\passkeyIntegrator\PasskeyIntegrator.ServiceDefaults\obj\Debug\net10.0\PasskeyIntegrator.ServiceDefaults.AssemblyInfoInputs.cache
+C:\Users\User\source\repos\cielo\passkeyIntegrator\PasskeyIntegrator.ServiceDefaults\obj\Debug\net10.0\PasskeyIntegrator.ServiceDefaults.AssemblyInfo.cs
+C:\Users\User\source\repos\cielo\passkeyIntegrator\PasskeyIntegrator.ServiceDefaults\obj\Debug\net10.0\PasskeyIntegrator.ServiceDefaults.csproj.CoreCompileInputs.cache
+C:\Users\User\source\repos\cielo\passkeyIntegrator\PasskeyIntegrator.ServiceDefaults\obj\Debug\net10.0\PasskeyIntegrator.ServiceDefaults.dll
+C:\Users\User\source\repos\cielo\passkeyIntegrator\PasskeyIntegrator.ServiceDefaults\obj\Debug\net10.0\refint\PasskeyIntegrator.ServiceDefaults.dll
+C:\Users\User\source\repos\cielo\passkeyIntegrator\PasskeyIntegrator.ServiceDefaults\obj\Debug\net10.0\PasskeyIntegrator.ServiceDefaults.pdb
+C:\Users\User\source\repos\cielo\passkeyIntegrator\PasskeyIntegrator.ServiceDefaults\obj\Debug\net10.0\ref\PasskeyIntegrator.ServiceDefaults.dll
